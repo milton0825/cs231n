@@ -1,6 +1,10 @@
+# *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+
 pass
-from cs231n.layers import *
-from cs231n.fast_layers import *
+
+# *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+from .layers import *
+from .fast_layers import *
 
 
 def affine_relu_forward(x, w, b):
