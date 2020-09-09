@@ -35,6 +35,9 @@ def svm_loss_naive(W, X, y, reg):
                 continue
             margin = scores[j] - correct_class_score + 1 # note delta = 1
             if margin > 0:
+                assert X[i].shape[0] == 3073
+                dW[:,j] += X[i]
+                dW[:,y[i]] -= X[i]
                 loss += margin
 
     # Right now the loss is a sum over all training examples, but we want it
@@ -54,7 +57,7 @@ def svm_loss_naive(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dW = dW / num_train + 2*reg*W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     
@@ -78,7 +81,20 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = X.shape[0]
+    num_classes = np.max(y) + 1
+    XW = X.dot(W) # (N, C)
+
+    assert XW.shape == (num_train, num_classes)
+
+    yi_score = XW[np.arange(num_train), y].reshape(num_train, 1)
+
+    score_diff = np.maximum(0, XW - yi_score + 1)
+
+    score_diff[np.arange(num_train), y] = 0
+    
+    loss += np.sum(score_diff) / num_train + reg * np.sum(W * W)
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -93,7 +109,17 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    mask = score_diff  # (C, N)
+
+    # Don't use np.argwhere here since the return shape
+    # is not suitable for array indexing
+    mask[np.nonzero(mask > 0)] = 1
+
+
+    mask[np.arange(num_train), y] -= np.sum(mask, axis=1)
+
+    dW = np.dot(X.T, mask) / num_train + 2 * reg * W
+    
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

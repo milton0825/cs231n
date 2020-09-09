@@ -6,6 +6,91 @@ import numpy as np
 import matplotlib.pyplot as plt
 from past.builtins import xrange
 
+
+class MatrixProductAndSum(object):
+
+    def __init__(self):
+        pass
+
+    def forward(self, X, W, b):
+        self.X = X
+        self.W = W
+        self.b = b
+        return X.dot(W) + b
+
+    def backward(self, dS):
+        dW = self.X.T.dot(dS)
+        dX = dS.dot(self.W.T)
+        db = dS.sum(axis=0)
+
+        return {
+            'dW': dW,
+            'dX': dX,
+            'db': db,
+        }
+
+
+class ReLU(object):
+
+    def __init__(self):
+        pass
+
+    def forward(self, X):
+        self.X = X
+        X[X<0] = 0
+        return X
+
+    def backward(self, dS):
+        dS[self.X==0] = 0. # all self.X should already >= 0
+
+        return {
+            'dX': dS,
+        }
+
+
+class Softmax(object):
+
+    def __init__(self):
+        pass
+
+    def forward(self, S, y):
+        self.S = S
+        self.y = y
+        num_train = S.shape[0]
+        exp_s_yi = np.exp(S[np.arange(num_train), y])
+        exp_s_ji_sum = np.sum(np.exp(S), axis=1)
+        loss = -np.sum(np.log(exp_s_yi / exp_s_ji_sum)) / num_train
+        return loss
+
+    def backward(self, dL):
+        N = self.S.shape[0]
+        dS = - np.exp(self.S) / np.exp(self.S).sum(axis=1, keepdims=True)
+        dS[np.arange(N), self.y] += 1
+
+        dS = -dS * dL / N
+
+        return {
+            'dS': dS,
+        }
+        
+
+
+class L2Regularization(object):
+
+    def __init__(self):
+        pass
+
+    def forward(self, W, reg):
+        self.reg = reg
+        self.W = W
+        return reg * np.sum(W*W)
+
+    def backward(self):
+        return {
+            'dW': 2 * self.reg * self.W,
+        }
+
+
 class TwoLayerNet(object):
     """
     A two-layer fully-connected neural network. The net has an input dimension of
@@ -79,8 +164,17 @@ class TwoLayerNet(object):
         # shape (N, C).                                                             #
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        
+        matrix_product_and_sum1 = MatrixProductAndSum()
+        X1 = matrix_product_and_sum1.forward(X, W1, b1)
 
-        pass
+        relu = ReLU()
+
+        X1 = relu.forward(X1)
+
+        matrix_product_and_sum2 = MatrixProductAndSum()
+
+        scores = matrix_product_and_sum2.forward(X1, W2, b2)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -98,7 +192,15 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        softmax = Softmax()
+        softmax.forward(scores, y)
+
+        l2_reg1 = L2Regularization()
+        l2_reg2 = L2Regularization()
+
+
+        loss = softmax.forward(scores, y) + l2_reg1.forward(W1, reg) \
+            + l2_reg2.forward(W2, reg)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -111,7 +213,36 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        dW1 = np.zeros_like(W1)
+        dW2 = np.zeros_like(W2)
+        db1 = np.zeros_like(b1)
+        db2 = np.zeros_like(b2)
+
+        result = softmax.backward(dL=1)
+
+        result = matrix_product_and_sum2.backward(dS=result['dS'])
+
+        dX1 = result['dX']
+        dW2 += result['dW']
+        db2 += result['db']
+
+        result = relu.backward(dS=dX1)
+
+        result = matrix_product_and_sum1.backward(dS=result['dX'])
+
+        dW1 += result['dW']
+        db1 += result['db']
+
+        result = l2_reg1.backward()
+        dW1 += result['dW']
+
+        result = l2_reg2.backward()
+        dW2 += result['dW']
+
+        grads['W1'] = dW1
+        grads['W2'] = dW2
+        grads['b1'] = db1
+        grads['b2'] = db2
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -156,7 +287,10 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            indexes = np.random.choice(num_train, batch_size)
+            X_batch = X[indexes]
+            y_batch = y[indexes]
+
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -172,7 +306,8 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            pass
+            for key in ['W1', 'W2', 'b1', 'b2']:
+                self.params[key] -= grads[key] * learning_rate
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -218,7 +353,23 @@ class TwoLayerNet(object):
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        W1 = self.params['W1']
+        W2 = self.params['W2']
+        b1 = self.params['b1']
+        b2 = self.params['b2']
+
+        matrix_product_and_sum1 = MatrixProductAndSum()
+        X1 = matrix_product_and_sum1.forward(X, W1, b1)
+
+        relu = ReLU()
+
+        X1 = relu.forward(X1)
+
+        matrix_product_and_sum2 = MatrixProductAndSum()
+
+        scores = matrix_product_and_sum2.forward(X1, W2, b2)
+        
+        y_pred = scores.argmax(axis=1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
