@@ -63,7 +63,33 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        C, H, W = input_dim
+
+        self.params['W1'] = np.random.normal(
+            scale=weight_scale,
+            size=(num_filters, C, filter_size, filter_size),
+        )
+
+        self.params['b1'] = np.zeros(num_filters)
+
+        pad = (filter_size-1)//2
+        stride = 1
+        H_2 = (H + 2*pad - filter_size)//stride + 1 # stride = 1
+        W_2 = (W + 2*pad - filter_size)//stride + 1
+
+        self.params['W2'] = np.random.normal(
+            scale=weight_scale,
+            size=(num_filters * H_2//2 * W_2//2, hidden_dim)
+        )
+
+        self.params['b2'] = np.zeros(hidden_dim)
+
+        self.params['W3'] = np.random.normal(
+            scale=weight_scale,
+            size=(hidden_dim, num_classes)
+        )
+
+        self.params['b3'] = np.zeros(num_classes)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -102,7 +128,19 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        cache = {}
+        X2, cache['conv_relu_pool1'] = conv_relu_pool_forward(
+            X,
+            W1,
+            b1,
+            conv_param,
+            pool_param
+        )
+
+        X3, cache['affine_relu1'] = affine_relu_forward(X2, W2, b2)
+
+        scores, cache['affine1'] = affine_forward(X3, W3, b3)
+
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -125,7 +163,28 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        loss, dout = softmax_loss(scores, y)
+
+        loss += 0.5 * self.reg * (np.sum(W1*W1) + np.sum(W2*W2) + np.sum(W3*W3))
+        
+        dx, dW3, db3 = affine_backward(dout, cache['affine1'])
+
+        dx, dW2, db2 = affine_relu_backward(dx, cache['affine_relu1'])
+
+        _, dW1, db1 = conv_relu_pool_backward(dx, cache['conv_relu_pool1'])
+
+        
+        dW3 += self.reg * W3
+        dW2 += self.reg * W2
+        dW1 += self.reg * W1
+
+        grads['W1'] = dW1
+        grads['W2'] = dW2
+        grads['W3'] = dW3
+
+        grads['b1'] = db1
+        grads['b2'] = db2
+        grads['b3'] = db3
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
