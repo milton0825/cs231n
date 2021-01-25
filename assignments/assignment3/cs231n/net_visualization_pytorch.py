@@ -1,6 +1,7 @@
 import torch
 import random
 import torchvision.transforms as T
+import torch.nn.functional as F 
 import numpy as np
 from .image_utils import SQUEEZENET_MEAN, SQUEEZENET_STD
 from scipy.ndimage.filters import gaussian_filter1d
@@ -34,7 +35,13 @@ def compute_saliency_maps(X, y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    scores = model(X)
+    loss = F.cross_entropy(scores, y)
+    loss.backward()
+
+    # Get the max gradient at each pixel across channel
+    idx = torch.argmax(X.grad, dim=1, keepdim=True)
+    saliency = X.grad.gather(dim=1, index=idx).squeeze()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -76,7 +83,19 @@ def make_fooling_image(X, target_y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    for i in range(100):
+        scores = model(X_fooling)
+        print(f"Iteration: {i}, score: {scores[0][target_y]}")
+
+        scores[0][target_y].backward()
+
+        with torch.no_grad():
+            X_fooling += learning_rate * X_fooling.grad / torch.norm(X_fooling.grad)
+            X_fooling.grad.zero_()
+
+        if target_y == scores.data.max(1)[1][0].item():
+            print('Made a fool image!')
+            break
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -94,7 +113,13 @@ def class_visualization_update_step(img, model, target_y, l2_reg, learning_rate)
     ########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    scores = model(img)
+    I = scores[0][target_y] - l2_reg * torch.norm(img)
+    I.backward()
+
+    with torch.no_grad():
+        img.data += learning_rate * img.grad / torch.norm(img.grad)
+        img.grad.zero_()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ########################################################################

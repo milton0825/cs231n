@@ -8,9 +8,9 @@ import numpy as np
 
 from .image_utils import SQUEEZENET_MEAN, SQUEEZENET_STD
 
-dtype = torch.FloatTensor
+# dtype = torch.FloatTensor
 # Uncomment out the following line if you're on a machine with a GPU set up for PyTorch!
-#dtype = torch.cuda.FloatTensor
+dtype = torch.cuda.FloatTensor
 def content_loss(content_weight, content_current, content_original):
     """
     Compute the content loss for style transfer.
@@ -26,7 +26,7 @@ def content_loss(content_weight, content_current, content_original):
     """
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    return content_weight * (content_current - content_original).pow(2).sum()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -46,7 +46,19 @@ def gram_matrix(features, normalize=True):
     """
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = features.shape
+    M = H * W
+
+    f = features.view(N, C, M)
+    
+    gram = torch.matmul(f, f.permute(0, 2, 1))
+
+    assert gram.shape == (N, C, C)
+
+    if normalize:
+        gram = gram / (H * W * C)
+
+    return gram
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -73,8 +85,14 @@ def style_loss(feats, style_layers, style_targets, style_weights):
     # not be very much code (~5 lines). You will need to use your gram_matrix function.
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
-
+    style_loss = 0
+    for i in range(len(style_layers)):
+        idx = style_layers[i]
+        gram_current = gram_matrix(feats[idx])
+        gram_target = style_targets[i]
+        style_weight = style_weights[i]
+        style_loss += style_weight * (gram_current - gram_target).pow(2).sum()
+    return style_loss
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
 def tv_loss(img, tv_weight):
@@ -91,8 +109,11 @@ def tv_loss(img, tv_weight):
     """
     # Your implementation should be vectorized and not require any loops!
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    _, C, H, W = img.shape
 
-    pass
+    loss = tv_weight * ((img[:,:,:H-1,:] - img[:,:,1:H,:]).pow(2).sum() + (img[:,:,:,:W-1] - img[:,:,:,1:W]).pow(2).sum())
+
+    return loss
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 def preprocess(img, size=512):
@@ -109,6 +130,7 @@ def preprocess(img, size=512):
     transform = T.Compose([
         T.Resize(size),
         T.ToTensor(),
+        # Why it's a list? mean, STD for each channel.
         T.Normalize(mean=SQUEEZENET_MEAN.tolist(),
                     std=SQUEEZENET_STD.tolist()),
         T.Lambda(lambda x: x[None]),

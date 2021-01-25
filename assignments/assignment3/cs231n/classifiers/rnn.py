@@ -151,7 +151,53 @@ class CaptioningRNN(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        N, D = features.shape
+        _, H = W_proj.shape
+        cache = []
+
+        h0, c = affine_forward(features, W_proj, b_proj)
+        cache.append(c)
+
+        x, c = word_embedding_forward(captions_in, W_embed)
+        cache.append(c)
+
+        rnn_forward = rnn_forward if self.cell_type == 'rnn' else lstm_forward
+
+        h, c = rnn_forward(x, h0, Wx, Wh, b)
+        cache.append(c)
+
+        yv, c = temporal_affine_forward(h, W_vocab, b_vocab)
+        cache.append(c)
+
+        loss, dl = temporal_softmax_loss(yv, captions_out, mask)
+
+        c = cache.pop()
+        dh, dW_vocab, db_vocab = temporal_affine_backward(dl, c)
+
+        grads['W_vocab'] = dW_vocab
+        grads['b_vocab'] = db_vocab
+
+        c = cache.pop()
+
+        rnn_backward = rnn_backward if self.cell_type == 'rnn' else lstm_backward
+        dx, dh0, dWx, dWh, db = rnn_backward(dh, c)
+
+        grads['Wx'] = dWx
+        grads['Wh'] = dWh
+        grads['b'] = db
+
+        c = cache.pop()
+        dW_embed = word_embedding_backward(dx, c)
+
+        grads['W_embed'] = dW_embed
+
+        c = cache.pop()
+        dfeatures, dW_proj, db_proj = affine_backward(dh0, c)
+
+        grads['W_proj'] = dW_proj
+        grads['b_proj'] = db_proj
+
+        assert len(grads) == 8
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -219,7 +265,24 @@ class CaptioningRNN(object):
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        _, H = W_proj.shape
+        h0, _ = affine_forward(features, W_proj, b_proj)
+        
+        prev_h = h0
+        prev_c = np.zeros(shape=(N,H))
+        input = self._start
+        for i in range(max_length):
+            x = W_embed[input,:]
+
+            if self.cell_type == 'rnn':
+                h, _ = rnn_step_forward(x, prev_h, Wx, Wh, b)
+            else:
+                h, next_c, _ = lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b)   
+                prev_c = next_c
+            yv, c = affine_forward(h, W_vocab, b_vocab)
+            input = yv.argmax(axis=1)
+            captions[:,i] = input
+            prev_h = h
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
